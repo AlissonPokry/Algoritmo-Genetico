@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Random;
+import java.util.Set;
 
 class Cotacao {
     String data;
@@ -90,7 +91,7 @@ public class Main {
 		// 	}
 		// }
 
-		negociarAcoes();
+		negociarAcoesGenetico();
 		System.out.println("\nNegociações concluídas.");
 		
 	}
@@ -122,29 +123,35 @@ public class Main {
     try {
         BufferedReader bfr = new BufferedReader(new FileReader(nomeArquivo));
         String linha;
-
-        bfr.readLine(); // Pula o cabeçalho
-
+        
+        // Pula o cabeçalho
+        bfr.readLine();
+        
         while ((linha = bfr.readLine()) != null) {
             String[] dados = linha.split(";");
-            
             if (dados.length >= 3) {
                 String data = dados[0].split(" ")[0];
-                String codigo = dados[1];
+                String codigo = dados[1].trim();
                 
-                // Remove o F do final do código se existir
-                if (codigo.endsWith("F")) {
-                    codigo = codigo.substring(0, codigo.length() - 1);
+                // Verifica se o código tem exatamente 5 caracteres alfanuméricos
+                if (!codigo.matches("^[A-Z0-9]{5}$")) {
+                    continue;
                 }
                 
-                double fechamento = Double.parseDouble(dados[2].replace(",", "."));
+                String precoStr = dados[2].trim().replace(",", ".");
+                double preco = Double.parseDouble(precoStr);
                 
-                cotacoes.add(new Cotacao(data, codigo, fechamento));
+                if (preco > 0) {
+                    cotacoes.add(new Cotacao(data, codigo, preco));
+                }
             }
         }
         bfr.close();
+        
+        
     } catch (Exception e) {
         System.out.println("Erro ao ler arquivo: " + e.getMessage());
+        e.printStackTrace();
     }
     return cotacoes;
 }
@@ -245,6 +252,98 @@ public static void negociarAcoes() {
     }
 }
 	
+public static void negociarAcoesGenetico() {
+    ArrayList<Cotacao> cotacoes = getCotacoes(NOME_ARQUIVO);
+    
+    // Agrupa as cotações por data
+    HashMap<String, ArrayList<Cotacao>> cotacoesPorData = new HashMap<>();
+    for (Cotacao c : cotacoes) {
+        cotacoesPorData.computeIfAbsent(c.data, k -> new ArrayList<>()).add(c);
+    }
+    
+    // Coleta todas as ações disponíveis
+    Set<String> codigosAcoes = new java.util.HashSet<>();
+    for(Cotacao c : cotacoes) {
+        codigosAcoes.add(c.codigo);
+    }
+    ArrayList<String> acoesDisponiveis = new ArrayList<>(codigosAcoes);
+    
+    // Ordena as datas
+    ArrayList<String> datas = new ArrayList<>(cotacoesPorData.keySet());
+    Collections.sort(datas);
+    
+    // Parâmetros do algoritmo genético
+    int tamanhoPopulacao = 100;
+    int numeroGeracoes = 50;
+    ArrayList<DNA> populacao = new ArrayList<>();
+    
+    for(int i = 0; i < datas.size() - 1; i += 2) {
+        String dataCompra = datas.get(i);
+        String dataVenda = datas.get(i + 1);
+        
+        System.out.printf("\nOtimizando para compra em %s e venda em %s\n", dataCompra, dataVenda);
+        
+        // Cria população inicial
+        populacao.clear();
+        for(int j = 0; j < tamanhoPopulacao; j++) {
+            DNA dna = new DNA();
+            dna.criarandomico(acoesDisponiveis);
+            populacao.add(dna);
+        }
+        
+        // Evolui a população
+        for(int geracao = 0; geracao < numeroGeracoes; geracao++) {
+            // Avalia fitness
+            for(DNA dna : populacao) {
+                dna.avaliarFitness(cotacoesPorData, dataCompra, dataVenda);
+            }
+            
+            // Ordena por fitness
+            Collections.sort(populacao, (a, b) -> Double.compare(b.getFitness(), a.getFitness()));
+            
+            // Mostra melhor resultado da geração
+            if(geracao % 10 == 0) {
+                DNA melhor = populacao.get(0);
+                System.out.printf("Geração %d - Lucro/Prejuízo: R$ %.2f\n", 
+                    geracao, melhor.getFitness() / 100.0);
+            }
+            
+            // Cria nova geração
+            ArrayList<DNA> novaGeracao = new ArrayList<>();
+            
+            // Elitismo - mantém os melhores
+            for(int j = 0; j < tamanhoPopulacao * 0.1; j++) {
+                novaGeracao.add(populacao.get(j));
+            }
+            
+            // Crossover
+            while(novaGeracao.size() < tamanhoPopulacao) {
+                DNA pai = populacao.get(rnd.nextInt(tamanhoPopulacao / 2));
+                DNA mae = populacao.get(rnd.nextInt(tamanhoPopulacao / 2));
+                DNA filho = new DNA();
+                filho.criaPaiMae(pai, mae, rnd.nextInt(NUMERO_POTES));
+                novaGeracao.add(filho);
+            }
+            
+            populacao = novaGeracao;
+        }
+        
+        // Usa o melhor resultado encontrado
+        DNA melhorSolucao = populacao.get(0);
+        melhorSolucao.avaliarFitness(cotacoesPorData, dataCompra, dataVenda);
+        
+        System.out.printf("\nMelhor carteira encontrada para %s -> %s:\n", dataCompra, dataVenda);
+        for(int p = 0; p < NUMERO_POTES; p++) {
+            String acao = melhorSolucao.getAcao(p);
+            double precoCompra = encontrarPrecoAcao(cotacoesPorData.get(dataCompra), acao);
+            double precoVenda = encontrarPrecoAcao(cotacoesPorData.get(dataVenda), acao);
+            System.out.printf("Pote %d: %s (Compra: R$ %.2f, Venda: R$ %.2f)\n", 
+                p + 1, acao, precoCompra, precoVenda);
+        }
+        System.out.printf("Lucro/Prejuízo total: R$ %.2f\n", melhorSolucao.getFitness() / 100.0);
+    }
+}
+	
 
 	//----------------------------------------------------------------------------------------------
 	
@@ -327,4 +426,13 @@ public static void negociarAcoes() {
 			e.printStackTrace();
 		}
 	}
+	
+	private static double encontrarPrecoAcao(ArrayList<Cotacao> cotacoes, String codigo) {
+    for(Cotacao c : cotacoes) {
+        if(c.codigo.equals(codigo)) {
+            return c.preco;
+        }
+    }
+    return 0;
+}
 }

@@ -1,68 +1,102 @@
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 
 public class DNA {
-	public static final int ngenes = 40;//979;
-	public static final int nivelMutacao = 10;
-	int odna[] = new int[ngenes];
-	float score = -1;
-	float distanciaTotal = -1;
-	int repetidos = -1;
-	
-	public void criarandomico() {
-		for(int i = 0; i < ngenes; i++) {
-			odna[i] = Main.rnd.nextInt(ngenes);
-		}
-	}
-	
-	public void criaPaiMae(DNA pai,DNA mae,int cossover) {
-		for(int i = 0; i < ngenes; i++) {
-			if(i < cossover) {
-				odna[i] = pai.odna[i];
-			}else {
-				odna[i] = mae.odna[i];
-			}
-		}
-		
-		for(int i = 0; i < 5; i++) {
-			int index = Main.rnd.nextInt(ngenes);
-			odna[index] = Main.rnd.nextInt(ngenes);
-		}
-		
-	}
-	
-	@Override
-	public String toString() {
-		StringBuilder sdna = new StringBuilder();
-		sdna.append("[");
-		for(int i = 0; i < ngenes; i++) {
-			if(i>0) {
-				sdna.append(",");
-			}
-			sdna.append(odna[i]);
-		}
-		sdna.append("]");
-		return sdna.toString();
-	}
-	
-	public void avaliaDna() {
-		Float somaValor = 0.0f;
-		int repetidos = 0;
-		int visitados[] = new int[ngenes];
-		visitados[odna[0]] = 1;
-		for(int i = 1; i < ngenes; i++) {
-			int cod1 = odna[i-1];
-			int cod2 = odna[i];
-			if(visitados[cod2]==1) {
-				repetidos++;
-			}else {
-				visitados[cod2]=1;
-			}
-			
-			float dist = Main.matrizdistancias[cod1][cod2];
-			somaValor+=dist;
-		}
-		
-		distanciaTotal = somaValor;
-		this.repetidos = repetidos;
-		score = somaValor + repetidos*100;
-	}	
+    public static final int ngenes = Main.NUMERO_POTES;
+    private String[] acoes; // códigos das ações escolhidas
+    private double fitness;
+    
+    public DNA() {
+        this.acoes = new String[ngenes];
+        this.fitness = 0.0;
+    }
+    
+    public void criarandomico(ArrayList<String> acoesDisponiveis) {
+        for(int i = 0; i < ngenes; i++) {
+            int index = Main.rnd.nextInt(acoesDisponiveis.size());
+            acoes[i] = acoesDisponiveis.get(index);
+        }
+    }
+    
+    public void criaPaiMae(DNA pai, DNA mae, int crossover) {
+        for(int i = 0; i < ngenes; i++) {
+            if(i < crossover) {
+                acoes[i] = pai.getAcao(i);
+            } else {
+                acoes[i] = mae.getAcao(i);
+            }
+        }
+        
+        // Mutação
+        if(Main.rnd.nextInt(100) < 15) { // 15% chance de mutação
+            int index = Main.rnd.nextInt(ngenes);
+            int novoIndex = Main.rnd.nextInt(ngenes);
+            String temp = acoes[index];
+            acoes[index] = acoes[novoIndex];
+            acoes[novoIndex] = temp;
+        }
+    }
+    
+    public String getAcao(int index) {
+        return acoes[index];
+    }
+    
+    public double getFitness() {
+        return fitness;
+    }
+    
+    public void avaliarFitness(HashMap<String, ArrayList<Cotacao>> cotacoesPorData, String dataCompra, String dataVenda) {
+        double valorTotal = 0;
+        double valorInicial = 1000.00; // R$ 100,00 por pote * 10 potes
+        
+        ArrayList<Cotacao> cotacoesCompra = cotacoesPorData.get(dataCompra);
+        ArrayList<Cotacao> cotacoesVenda = cotacoesPorData.get(dataVenda);
+        
+        if (cotacoesCompra == null || cotacoesVenda == null) {
+            this.fitness = -valorInicial * 100; // Penalidade máxima
+            return;
+        }
+        
+        for (int i = 0; i < ngenes; i++) {
+            double valorPote = 100.00; // R$ 100,00 por pote
+            String codigoAcao = acoes[i];
+            
+            // Encontra preço de compra
+            Double precoCompra = null;
+            for (Cotacao c : cotacoesCompra) {
+                if (c.codigo.equals(codigoAcao)) {
+                    precoCompra = c.preco;
+                    break;
+                }
+            }
+            
+            // Encontra preço de venda
+            Double precoVenda = null;
+            for (Cotacao c : cotacoesVenda) {
+                if (c.codigo.equals(codigoAcao)) {
+                    precoVenda = c.preco;
+                    break;
+                }
+            }
+            
+            // Se encontrou ambos os preços
+            if (precoCompra != null && precoVenda != null && precoCompra > 0) {
+                int quantidade = (int)(valorPote / precoCompra);
+                if (quantidade > 0) {
+                    double valorInvestido = quantidade * precoCompra;
+                    double valorRetorno = quantidade * precoVenda;
+                    valorTotal += valorRetorno;
+                }
+            }
+        }
+        
+        // Calcula o lucro/prejuízo em centavos
+        this.fitness = (valorTotal - valorInicial) * 100;
+    }
+    
+    @Override
+    public String toString() {
+        return Arrays.toString(acoes) + " Fitness: " + fitness;
+    }
 }
