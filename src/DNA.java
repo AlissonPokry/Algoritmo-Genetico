@@ -2,10 +2,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 
+
 public class DNA {
-    public static final int ngenes = Main.NUMERO_POTES;
-    private String[] acoes; // códigos das ações escolhidas
-    private double fitness;
+    // Constantes e atributos
+    public static final int ngenes = Main.NUMERO_POTES;  // Cada gene representa um pote de investimento
+    private String[] acoes;   // Array com os códigos das ações escolhidas para cada pote
+    private double fitness;   // Valor de adequação (lucro/prejuízo) desta solução
     
     public DNA() {
         this.acoes = new String[ngenes];
@@ -20,16 +22,17 @@ public class DNA {
     }
     
     public void criaPaiMae(DNA pai, DNA mae, int crossover) {
+        // Crossover: combina genes dos pais
         for(int i = 0; i < ngenes; i++) {
             if(i < crossover) {
-                acoes[i] = pai.getAcao(i);
+                acoes[i] = pai.getAcao(i); // Herda do pai
             } else {
-                acoes[i] = mae.getAcao(i);
+                acoes[i] = mae.getAcao(i);  // Herda da mãe
             }
         }
         
-        // Mutação
-        if(Main.rnd.nextInt(100) < 15) { // 15% chance de mutação
+        // Mutação: 15% de chance de trocar duas ações de posição
+        if(Main.rnd.nextInt(100) < 15) {
             int index = Main.rnd.nextInt(ngenes);
             int novoIndex = Main.rnd.nextInt(ngenes);
             String temp = acoes[index];
@@ -47,22 +50,24 @@ public class DNA {
     }
     
     public void avaliarFitness(HashMap<String, ArrayList<Cotacao>> cotacoesPorData, String dataCompra, String dataVenda) {
+        // Inicialização
         double valorTotal = 0;
-        double valorInicial = 1000.00; // R$ 100,00 por pote * 10 potes
-        
+        double valorPorPote = Main.montante / (Main.NUMERO_POTES * 100.0);  // Valor em reais por pote
+
+        // Obtém as cotações dos dias de compra e venda
         ArrayList<Cotacao> cotacoesCompra = cotacoesPorData.get(dataCompra);
         ArrayList<Cotacao> cotacoesVenda = cotacoesPorData.get(dataVenda);
         
+        // Validação dos dados
         if (cotacoesCompra == null || cotacoesVenda == null) {
-            this.fitness = -valorInicial * 100; // Penalidade máxima
+            this.fitness = -Main.montante;  // Penalização máxima
             return;
         }
         
+        // Calcula o retorno para cada ação escolhida
         for (int i = 0; i < ngenes; i++) {
-            double valorPote = 100.00; // R$ 100,00 por pote
             String codigoAcao = acoes[i];
-            
-            // Encontra preço de compra
+            // Busca preço de compra
             Double precoCompra = null;
             for (Cotacao c : cotacoesCompra) {
                 if (c.codigo.equals(codigoAcao)) {
@@ -71,7 +76,7 @@ public class DNA {
                 }
             }
             
-            // Encontra preço de venda
+            // Busca preço de venda
             Double precoVenda = null;
             for (Cotacao c : cotacoesVenda) {
                 if (c.codigo.equals(codigoAcao)) {
@@ -80,19 +85,18 @@ public class DNA {
                 }
             }
             
-            // Se encontrou ambos os preços
+            // Calcula retorno se for possível comprar/vender
             if (precoCompra != null && precoVenda != null && precoCompra > 0) {
-                int quantidade = (int)(valorPote / precoCompra);
+                int quantidade = (int)(valorPorPote / precoCompra);
                 if (quantidade > 0) {
-                    double valorInvestido = quantidade * precoCompra;
                     double valorRetorno = quantidade * precoVenda;
                     valorTotal += valorRetorno;
                 }
             }
         }
         
-        // Calcula o lucro/prejuízo em centavos
-        this.fitness = (valorTotal - valorInicial) * 100;
+        // Calcula lucro/prejuízo
+        this.fitness = (valorTotal * 100) - Main.montante;
     }
     
     @Override
