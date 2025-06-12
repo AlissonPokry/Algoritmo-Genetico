@@ -23,6 +23,8 @@ public class Main {
     public static String NOME_ARQUIVO = "cotacoes.csv";  // Arquivo com histórico de cotações
     public static final int NUMERO_POTES = 10;  // Número de divisões do investimento
     public static int montante = 100000;  // Montante inicial em centavos (R$ 1000,00)
+    public static final int TAMANHO_POPULACAO = 10000; 
+    public static final int NUMERO_GERACOES = 50;
 
 
 	public static void main(String[] args) {
@@ -52,11 +54,6 @@ public class Main {
         return potes;
     }
 
-	/**
-     * Lê e processa o arquivo CSV com as cotações históricas
-     * @param nomeArquivo Nome do arquivo CSV
-     * @return Lista de cotações processadas
-     */
 	public static ArrayList<Cotacao> getCotacoes(String nomeArquivo) {
     ArrayList<Cotacao> cotacoes = new ArrayList<>();
     try {
@@ -116,8 +113,8 @@ public class Main {
     Collections.sort(datas);
     
     // Parâmetros do algoritmo genético
-    int tamanhoPopulacao = 100;
-    int numeroGeracoes = 50;
+    int tamanhoPopulacao = TAMANHO_POPULACAO;
+    int numeroGeracoes = NUMERO_GERACOES;
     ArrayList<DNA> populacao = new ArrayList<>();
     
     double montanteAtual = montante; // Track current total money
